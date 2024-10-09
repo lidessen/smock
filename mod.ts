@@ -1,5 +1,8 @@
 interface Smock {
+  paused: boolean;
   use: (config: SmockListener) => void;
+  pause: () => void;
+  resume: () => void;
 }
 
 interface SmockListener {
@@ -57,15 +60,17 @@ export function init() {
 
     private async modifyIncomingMessage(
       data: string,
-    ): Promise<string | void> {
+    ): Promise<string | undefined> {
       let modifiedData = data;
       try {
-        for (const listener of this.listeners) {
-          if (listener.message) {
-            modifiedData = await listener.message(
-              data,
-              this.socket,
-            );
+        if (!smock.paused) {
+          for (const listener of this.listeners) {
+            if (listener.message) {
+              modifiedData = await listener.message(
+                data,
+                this.socket,
+              );
+            }
           }
         }
         return modifiedData;
@@ -78,9 +83,11 @@ export function init() {
     private async modifyOutgoingMessage(data: string): Promise<string> {
       let modifiedData = data;
       try {
-        for (const listener of this.listeners) {
-          if (listener.send) {
-            modifiedData = await listener.send(data, this.socket);
+        if (!smock.paused) {
+          for (const listener of this.listeners) {
+            if (listener.send) {
+              modifiedData = await listener.send(data, this.socket);
+            }
           }
         }
         return modifiedData;
@@ -151,8 +158,15 @@ export function init() {
 
   globalThis.WebSocket = ProxyWebSocket as unknown as typeof WebSocket;
   const smock: Smock = {
+    paused: false,
     use: (config: SmockListener) => {
       smockListeners.push(config);
+    },
+    pause: () => {
+      smock.paused = true;
+    },
+    resume: () => {
+      smock.paused = false;
     },
   };
   Reflect.defineProperty(globalThis, "smock", {
