@@ -1,3 +1,4 @@
+// deno-lint-ignore-file no-explicit-any
 interface Smock {
   paused: boolean;
   use: (config: SmockListener) => void;
@@ -33,20 +34,25 @@ export function init() {
       this.socket = new OriginalWebSocket(url, protocols);
       this.eventListeners = new Map();
 
+      if (this.listeners.length === 0) {
+        return this.socket as any;
+      }
+
       return new Proxy(this, {
         get: (target, prop, receiver) => {
           if (prop === "addEventListener") {
             return target.addEventListener.bind(target);
-          } else if (prop === "removeEventListener") {
-            return target.removeEventListener.bind(target);
-          } else if (prop === "close") {
-            // deno-lint-ignore no-explicit-any
-            return (...args: any[]) => target.socket.close(...args);
-          } else if (prop in target) {
-            return Reflect.get(target, prop, receiver);
-          } else {
-            return Reflect.get(target.socket, prop, target.socket);
           }
+          if (prop === "removeEventListener") {
+            return target.removeEventListener.bind(target);
+          }
+          if (prop === "close") {
+            return (...args: any[]) => target.socket.close(...args);
+          }
+          if (prop in target) {
+            return Reflect.get(target, prop, receiver);
+          }
+          return Reflect.get(target.socket, prop, target.socket);
         },
         set: (target, prop, value) => {
           if (prop in target) {
